@@ -74,6 +74,8 @@ def main(
         'union_returns': [],
         'intersection_sharpe': [],
         'union_sharpe': [],
+        'intersection_sizes': [],
+        'union_sizes': [],
     }
 
     for sim in range(n_sims):
@@ -83,9 +85,14 @@ def main(
 
         union_portfolio = create_union_portfolio(df)
 
-        int_return = int_portfolio['return'].mean()
-        int_vol = int_portfolio['return'].std()
-        int_sharpe = int_return / int_vol
+
+        if len(int_portfolio) > 0:
+            int_return = int_portfolio['return'].mean()
+            int_vol = int_portfolio['return'].std()
+            int_sharpe = int_return / int_vol if int_vol is not None and int_vol > 0 else 0
+        else:
+            int_return = 0.0
+            int_sharpe = 0.0
 
         uni_return = union_portfolio['return'].mean()
         uni_vol = union_portfolio['return'].std()
@@ -95,6 +102,8 @@ def main(
         results['union_returns'].append(uni_return)
         results['intersection_sharpe'].append(int_sharpe)
         results['union_sharpe'].append(uni_sharpe)
+        results['intersection_sizes'].append(len(int_portfolio))
+        results['union_sizes'].append(len(union_portfolio))
 
     return results
 
@@ -103,7 +112,30 @@ if __name__ == "__main__":
 
     results = main()
 
+    print("\n=== RESULTS ===\n")
+
+    print("PORTFOLIO SIZE:")
+    print(f"  Intersection (AND): {np.mean(results['intersection_sizes']):.1f} stocks (avg)")
+    print(f"  Union (OR/Average): {np.mean(results['union_sizes']):.1f} stocks (avg)")
+    print(
+        f"  → Intersection has {(1 - np.mean(results['intersection_sizes']) / np.mean(results['union_sizes'])) * 100:.0f}% fewer stocks!")
+
+    print("\nEXPECTED RETURNS:")
+    print(f"  Intersection: {np.mean(results['intersection_returns']) * 100:.2f}%")
+    print(f"  Union:        {np.mean(results['union_returns']) * 100:.2f}%")
+
     print("\nSHARPE RATIO:")
-    print(f"Intersection: {np.mean(results['intersection_sharpe']):.3f}")
-    print(f"Union:        {np.mean(results['union_sharpe']):.3f}")
-    print(f"Union is {(np.mean(results['union_sharpe']) / np.mean(results['intersection_sharpe']) - 1) * 100:.0f}% better!")
+    print(f"  Intersection: {np.mean(results['intersection_sharpe']):.3f}")
+    print(f"  Union:        {np.mean(results['union_sharpe']):.3f}")
+
+    if np.mean(results['intersection_sharpe']) > 0:
+        print(
+            f"  → Union is {(np.mean(results['union_sharpe']) / np.mean(results['intersection_sharpe']) - 1) * 100:.0f}% better!")
+    else:
+        print(f"  → Intersection Sharpe is too low to compare (likely too few stocks)")
+
+    print("\nSTATISTICAL SIGNIFICANCE:")
+    t_stat, p_value = stats.ttest_rel(results['union_sharpe'], results['intersection_sharpe'])
+    print(f"  T-statistic: {t_stat:.2f}")
+    print(f"  P-value: {p_value:.6f}")
+    print(f"  → Union approach is {'significantly' if p_value < 0.05 else 'not significantly'} better")
